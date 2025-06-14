@@ -57,15 +57,27 @@ def download_video(url, format_id, download_id, output_dir):
 def get_video_info():
     """Obter informações do vídeo"""
     try:
+        # Verificar se o request tem JSON válido
+        if not request.is_json:
+            return jsonify({'error': 'Content-Type deve ser application/json'}), 400
+            
         data = request.get_json()
+        if data is None:
+            return jsonify({'error': 'JSON inválido ou vazio'}), 400
+            
         url = data.get('url')
         
         if not url:
             return jsonify({'error': 'URL é obrigatória'}), 400
+            
+        # Validar se é URL do YouTube
+        if 'youtube.com' not in url and 'youtu.be' not in url:
+            return jsonify({'error': 'URL deve ser do YouTube'}), 400
         
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
+            'extract_flat': False,
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -94,6 +106,12 @@ def get_video_info():
                 'formats': formats[:10]  # Limitar a 10 formatos
             })
             
+    except yt_dlp.utils.DownloadError as e:
+        error_msg = str(e)
+        if 'Sign in to confirm' in error_msg:
+            return jsonify({'error': 'YouTube está pedindo autenticação. Tente novamente em alguns minutos ou use um vídeo diferente.'}), 429
+        else:
+            return jsonify({'error': f'Erro do YouTube: {error_msg}'}), 400
     except Exception as e:
         return jsonify({'error': f'Erro ao obter informações: {str(e)}'}), 500
 
@@ -102,12 +120,23 @@ def get_video_info():
 def start_download():
     """Iniciar download do vídeo"""
     try:
+        # Verificar se o request tem JSON válido
+        if not request.is_json:
+            return jsonify({'error': 'Content-Type deve ser application/json'}), 400
+            
         data = request.get_json()
+        if data is None:
+            return jsonify({'error': 'JSON inválido ou vazio'}), 400
+            
         url = data.get('url')
         format_id = data.get('format_id', 'best[ext=mp4]')
         
         if not url:
             return jsonify({'error': 'URL é obrigatória'}), 400
+            
+        # Validar se é URL do YouTube
+        if 'youtube.com' not in url and 'youtu.be' not in url:
+            return jsonify({'error': 'URL deve ser do YouTube'}), 400
         
         # Gerar ID único para o download
         download_id = str(int(time.time() * 1000))
